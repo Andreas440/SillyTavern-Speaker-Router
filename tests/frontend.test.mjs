@@ -32,6 +32,36 @@ function fixture({choices=['C1','C2','C1'], mutateDuringDecision, duringGenerati
  return {app,ctx,target,draft,events,requests,domHandlers,generated:()=>generated,decisions:()=>decisions,status:()=>target.querySelector('[data-status]').textContent};
 }
 test('frontend creates standard drawer and fixes per-character macros',async()=>{const f=fixture();const drawer=f.target.children[0].children[0];assert.equal(drawer.className,'inline-drawer');assert.equal(drawer.children[0].className,'inline-drawer-toggle inline-drawer-header');await f.app.evaluate(true);assert.equal(f.generated(),0);assert.equal(f.status(),'Dry run complete.');});
+
+test('cast row is shown by default and the settings checkbox hides it',async()=>{
+    const f=fixture();
+    assert.equal(f.app.settings().showCast,true);
+    // The drawer is only built once the extension boots; render() builds it here.
+    f.app.render();
+    const all=f.target.walk();
+    const label=all.find(x=>x.tag==='span' && x.textContent==='Show cast row in group chats');
+    assert.ok(label,'settings checkbox label is present');
+    const row=all.find(x=>x.tag==='label' && x.children?.includes(label));
+    const box=row.children.find(x=>x.tag==='input');
+    assert.equal(box.checked,true);
+    box.checked=false; box.listeners.change();
+    assert.equal(f.app.settings().showCast,false);
+    box.checked=true; box.listeners.change();
+    assert.equal(f.app.settings().showCast,true);
+});
+
+test('public hook toggles cast visibility',async()=>{
+    const f=fixture();
+    const hook=globalThis.JevSpeakerRouter;
+    assert.equal(typeof hook.setCastVisible,'function');
+    assert.equal(typeof hook.isCastVisible,'function');
+    assert.equal(hook.isCastVisible(),true);
+    hook.setCastVisible(false);
+    assert.equal(f.app.settings().showCast,false);
+    assert.equal(hook.isCastVisible(),false);
+    hook.setCastVisible(true);
+    assert.equal(hook.isCastVisible(),true);
+});
 test('frontend active mode awaits its own generations and caps at three',async()=>{const f=fixture();f.app.settings().groups['1'].active=true;await f.app.evaluate(false);assert.equal(f.generated(),3);assert.equal(f.decisions(),3);assert.match(f.status(),/Response limit reached/);});
 test('frontend USER yields with no generation',async()=>{const f=fixture({choices:['USER']});f.ctx.chat.push({original_avatar:'new.png',mes:'Reply'});f.app.settings().groups['1'].active=true;await f.app.evaluate(false);assert.equal(f.generated(),0);assert.equal(f.status(),'Waiting for you.');});
 test('frontend rejects stale mute change while Jev runs',async()=>{const f=fixture({mutateDuringDecision:c=>c.groups[0].disabled_members.push('new.png')});f.app.settings().groups['1'].active=true;await f.app.evaluate(false);assert.equal(f.generated(),0);assert.match(f.status(),/discarded/);});

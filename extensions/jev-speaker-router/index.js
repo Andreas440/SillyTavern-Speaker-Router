@@ -5,7 +5,7 @@ import { generateGroupWrapper, is_group_automode_enabled, group_activation_strat
 const KEY = 'jev_speaker_router';
 const API = '/api/plugins/jev-speaker-router';
 let root, controller, timer, revision = 0, running = false, ownedGeneration = null, drawerOpen = false;
-let castRoot = null, castCollapsed = false, castToggling = false;
+let castRoot = null, castToggling = false;
 const ctx = () => SillyTavern.getContext();
 const activity=[];
 let lastStatus='Ready.';
@@ -17,8 +17,17 @@ function trace(message) {
 }
 function settings() {
     const all = ctx().extensionSettings;
-    all[KEY] ??= {profiles:{},groups:{},model:'typesafe/jev-1.13'};
+    all[KEY] ??= {profiles:{},groups:{},model:'typesafe/jev-1.13',showCast:true};
     return all[KEY];
+}
+/** Cast row visibility (0.6.0): persisted, default on. `?? true` keeps
+    existing installs — whose settings predate the flag — showing the row. */
+const isCastVisible = () => settings().showCast ?? true;
+function setCastVisible(value) {
+    settings().showCast = !!value;
+    save();
+    renderCast();
+    render();
 }
 function groupSettings() {
     const id = String(ctx().groupId);
@@ -178,12 +187,12 @@ function render() {
     root.replaceChildren();
     const drawer=element('div');drawer.className='inline-drawer';
     const header=element('div');header.className='inline-drawer-toggle inline-drawer-header';
-    header.append(element('b','Jev Speaker Router'));
+    header.append(element('b','Speaker Router'));
     const icon=element('div');icon.className=`inline-drawer-icon fa-solid fa-circle-chevron-${drawerOpen?'up':'down'} ${drawerOpen?'up':'down'}`;header.append(icon);
     const details=element('div');details.className='inline-drawer-content';details.style.display=drawerOpen?'block':'none';
     header.addEventListener('click',()=>{drawerOpen=!drawerOpen;});
     drawer.append(header,details);root.append(drawer);
-    details.append(element('small','Version 0.5.2'));
+    details.append(element('small','Version 0.6.0'));
     details.append(element('p','Preview decisions or enable active routing for this group. Routing sends the previewed context to OpenRouter.'));
     const controls=element('div'); controls.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
     controls.append(button('Check connection',async()=>{
@@ -199,6 +208,14 @@ function render() {
     model.setAttribute('list','speaker-router-models');
     model.addEventListener('change',()=>{cancel();s.model=model.value.trim();save();});
     details.append(element('label','Decision model'),model,knownModels);
+    // 0.6.0: the cast row can be hidden completely (its Hide button, or
+    // Pocket Tavern's top-bar Cast button). This checkbox is the way back
+    // that works anywhere — on a computer, without Pocket Tavern — so the
+    // row can never be stranded hidden.
+    const castLabel=element('label');castLabel.className='checkbox_label';
+    const cast=element('input');cast.type='checkbox';cast.checked=isCastVisible();
+    cast.addEventListener('change',()=>{setCastVisible(cast.checked);});
+    castLabel.append(cast,element('span','Show cast row in group chats'));details.append(castLabel);
     if(ctx().groupId) {
         const g=groupSettings();
         const activeLabel=element('label');activeLabel.className='checkbox_label';
@@ -270,7 +287,11 @@ function adjustCastChatHeight(chatEl) {
 function renderCast() {
     const group = currentGroup();
     const chatEl = document.querySelector('#chat');
-    if (!group || !chatEl || !chatEl.parentNode) {
+    // 0.6.0: hidden means gone — the row is removed from the page and
+    // #chat gets its height back, instead of leaving a 46px row holding a
+    // "Cast ▾" button. Bring it back from the settings checkbox, or from
+    // Pocket Tavern's top-bar Cast button.
+    if (!group || !chatEl || !chatEl.parentNode || !isCastVisible()) {
         try { if (chatEl?.style) { chatEl.style.maxHeight = ''; chatEl.style.minHeight = ''; } } catch {}
         castRoot?.remove(); castRoot = null; return;
     }
@@ -289,12 +310,6 @@ function renderCast() {
         chatEl.parentNode.insertBefore(castRoot, chatEl);
     }
     castRoot.replaceChildren();
-    if (castCollapsed) {
-        const expand = element('button'); expand.type = 'button'; expand.textContent = 'Cast ▾'; expand.className = 'menu_button';
-        expand.style.cssText = 'flex:0 0 auto;white-space:nowrap;min-width:72px;padding:6px 10px;box-sizing:border-box;';
-        expand.addEventListener('click', () => { castCollapsed = false; renderCast(); });
-        castRoot.append(expand); adjustCastChatHeight(chatEl); return;
-    }
     for (const avatar of group.members || []) {
         const c = ctx().characters.find(x => x.avatar === avatar); if (!c) continue;
         const muted = (group.disabled_members || []).includes(avatar);
@@ -318,7 +333,7 @@ function renderCast() {
     all.addEventListener('click', async (e) => { e.preventDefault(); await unmuteAllCast(); });
     const hide = element('button'); hide.type = 'button'; hide.textContent = 'Hide'; hide.className = 'menu_button';
     hide.style.cssText = 'flex:0 0 auto;white-space:nowrap;min-width:64px;padding:6px 10px;height:36px;box-sizing:border-box;line-height:1.2;';
-    hide.addEventListener('click', () => { castCollapsed = true; renderCast(); });
+    hide.addEventListener('click', () => { setCastVisible(false); });
     castRoot.append(all, hide);
     adjustCastChatHeight(chatEl);
 }
@@ -395,3 +410,9 @@ function boot() {
 }
 if(event_types.APP_READY) eventSource.on(event_types.APP_READY,boot);
 $(boot);
+
+// 0.6.0: a small public hook so another extension (Pocket Tavern's top bar)
+// can show or hide the cast row without touching the router's DOM. The
+// "Show cast row" checkbox in this extension's settings is the backup that
+// works anywhere, including on a computer without Pocket Tavern.
+globalThis.JevSpeakerRouter = { setCastVisible, isCastVisible };

@@ -1,11 +1,11 @@
 {
-  "display_name": "Jev Speaker Router",
+  "display_name": "Speaker Router",
   "loading_order": 100,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "author": "Dre and OpenAI",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "minimum_client_version": "1.19.0",
   "auto_update": false
 }

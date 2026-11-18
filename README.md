@@ -1,4 +1,12 @@
-# Jev Speaker Router 0.5.2
+# Speaker Router 0.6.0
+
+The extension is now called **Speaker Router** — the name is no longer tied to Jev. Only the visible name changed: the extension and plugin folders, the settings key (`jev_speaker_router`) and the plugin address (`/api/plugins/jev-speaker-router`) stay as they are, so existing profiles and per-group settings carry over untouched. The decision model is still `typesafe/jev-1.13` on OpenRouter, which is a model name, not the extension's name. Source is now version-controlled at https://github.com/Andreas440/SillyTavern-Speaker-Router — clone or pull it on the Pi, then run `install.sh` as before.
+
+## 0.6.0: Hide removes the cast row for real, with a backup way back
+
+- **Hide truly hides.** Tapping **Hide** on the cast row used to leave a 46px row holding a "Cast ▾" button, and the chat stayed shrunk by that height. Now the row is removed from the page entirely and `#chat` gets its height back. There is no collapsed state any more.
+- **A persisted "Show cast row" checkbox** in the extension's settings panel is the way back. It works anywhere — on a computer, without Pocket Tavern — so the row can never be stranded hidden. It is saved with the rest of the settings, default on, and existing installs keep showing the row.
+- **A small public hook** (`window.JevSpeakerRouter = { setCastVisible, isCastVisible }`) lets Pocket Tavern's top bar show or hide the row in group chats without touching the router's page elements. Pocket Tavern never touches the row itself; the router still owns it.
 
 ## 0.5.2: cast row follows the theme, size pulled back a notch
 
@@ -156,20 +164,24 @@ Regression tests simulate background dry-run events during/after a user turn and
 - Keeps dry-run evaluation, dynamic membership, optional shared character profiles, and saved settings from 0.1.0.
 - No character names are hard-coded. Request IDs are mapped to avatar filenames and resolved to current array indices immediately before generation.
 
-## Upgrade from 0.1.0, 0.2.0, 0.2.1, 0.4.0, 0.4.1, 0.5.0 or 0.5.1
+## Install / upgrade (0.6.0)
 
-Copy `jev-speaker-router-0.5.2.tar.gz` to `/storage/docker/sillytavern/`, then run:
+From the GitHub repo on the Pi:
 
 ```sh
 cd /storage/docker/sillytavern
-tar -xzf jev-speaker-router-0.5.2.tar.gz
-sh jev-speaker-router-0.5.2/install.sh
+git clone https://github.com/Andreas440/SillyTavern-Speaker-Router.git speaker-router
+sh speaker-router/install.sh
 docker restart sillytavern
 ```
 
-The installer backs up both installed components and config under `jev-backups/<timestamp>-<process-id>/`, replaces the project files, and enables server plugins if necessary. It does not modify character cards, chats or user extension settings. It also supports a first installation with the existing folder mappings. Enabling server plugins enables any other server plugins installed there.
+To upgrade later: `git -C speaker-router pull`, then run `install.sh` again and restart the container.
 
-Hard-refresh the browser with Ctrl+Shift+R. In Extensions, find the normal-looking **Jev Speaker Router** drawer; inside it, confirm Version 0.5.2.
+The installer backs up both installed components and config under `speaker-router-backups/<timestamp>-<process-id>/`, replaces the project files, and enables server plugins if necessary. It does not modify character cards, chats or user extension settings. It also supports a first installation with the existing folder mappings. Enabling server plugins enables any other server plugins installed there.
+
+Hard-refresh the browser with Ctrl+Shift+R. In Extensions, find the normal-looking **Speaker Router** drawer; inside it, confirm Version 0.6.0.
+
+Uninstall: delete `extensions/jev-speaker-router` and `plugins/jev-speaker-router` from the SillyTavern folder, then `docker restart sillytavern`. Settings and profiles live in SillyTavern itself, so they survive an uninstall and are picked up again on reinstall.
 
 ## First check
 
@@ -182,7 +194,7 @@ Hard-refresh the browser with Ctrl+Shift+R. In Extensions, find the normal-looki
 1. Disable **Group Response Router**, visible in Dre's screenshot, and any other extension that controls speaker generation. Coexistence with another router is not supported or automatically detected.
 2. Set the current group's reply-order strategy to **Manual**.
 3. Turn SillyTavern's built-in **Auto-mode off**.
-4. In Jev Speaker Router, select **Enable active routing for this group**. This does not immediately start generation.
+4. In Speaker Router, select **Enable active routing for this group**. This does not immediately start generation.
 5. Send a normal message, or use **Route now** to route from the current conversation.
 
 You can start with a maximum of one response for an initial test, then increase it to the default three. Enabling active routing is per group, so other groups retain their previous behaviour. Use one controlling browser tab for initial testing; there is no cross-tab coordinator.
@@ -222,7 +234,7 @@ Highest-score selection is used. Debug shows probabilities, not invented explana
 
 Local tests cover: context construction, response validation, credential handling with stubs, cancellation/concurrency, bounded sequential routing, and the frontend with simulated DOM and SillyTavern events. JavaScript and shell syntax checks pass. The installer retains the existing backup and settings-preservation behavior. Run the tests with `node --test tests/*.test.mjs` from the extracted release directory.
 
-Dre confirmed the preceding 0.3.0 release working in his SillyTavern 1.19.0 container. The 0.5.2 update has passed local automated tests (85 tests, unchanged from 0.5.1 except for cast-row styling). It still needs a live check after installation on the Pi, especially: the cast row background follows the dark/custom theme, and the row height feels right.
+Dre confirmed the preceding 0.3.0 release working in his SillyTavern 1.19.0 container. The 0.5.2 update has passed local automated tests (85 tests, unchanged from 0.5.1 except for cast-row styling). It still needs a live check after installation on the Pi, especially: the cast row background follows the dark/custom theme, and the row height feels right. The 0.6.0 update also needs a live check: Hide removes the row and restores the chat height, the settings checkbox brings it back, and Pocket Tavern's top-bar Cast button toggles it.
 
 ## Troubleshooting and rollback
 

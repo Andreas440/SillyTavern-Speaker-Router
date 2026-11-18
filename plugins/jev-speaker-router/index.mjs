@@ -1,7 +1,7 @@
 import express from 'express';
 import { readSecret, SECRET_KEYS } from '../../src/endpoints/secrets.js';
 import { makeRequest, parseDecision } from './decision.mjs';
-export const info = {id:'jev-speaker-router',name:'Jev Speaker Router',description:'Speaker decisions via OpenRouter.'};
+export const info = {id:'jev-speaker-router',name:'Speaker Router',description:'Speaker decisions via OpenRouter.'};
 const active = new Set();
 export async function init(router) {
     router.use((req,res,next)=> {
@@ -9,7 +9,7 @@ export async function init(router) {
         next();
     });
     router.use(express.json({limit:'120kb'}));
-    router.get('/status',(req,res)=>res.json({version:'0.5.2',dryRunOnly:false,credentialConfigured:!!readSecret(req.user.directories,SECRET_KEYS.OPENROUTER)}));
+    router.get('/status',(req,res)=>res.json({version:'0.6.0',dryRunOnly:false,credentialConfigured:!!readSecret(req.user.directories,SECRET_KEYS.OPENROUTER)}));
     router.post('/decide',async(req,res)=> {
         let payload;
         try { payload = makeRequest(req.body); }
@@ -57,5 +57,5 @@ export async function init(router) {
             clearTimeout(timeout); res.off('close',disconnect); active.delete(user);
         }
     });
-    console.info('[Jev Speaker Router] Plugin 0.5.2 loaded.');
+    console.info('[Speaker Router] Plugin 0.6.0 loaded.');
 }
