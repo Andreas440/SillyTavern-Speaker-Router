@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildState} from '../extensions/jev-speaker-router/context.js';
+import {makeRequest} from '../plugins/jev-speaker-router/decision.mjs';
+const user={is_user:true,mes:'Hello'};
+const reply={original_avatar:'a',mes:'Reply'};
+const state=(chat,maxResponses=3)=>buildState({groupId:1,name1:'Dre',groups:[{id:1,members:['a','b']}],characters:[{avatar:'a',name:'A'},{avatar:'b',name:'B'}],chatMetadata:{},chat},{groups:{1:{history:4,maxResponses}}});
+test('pacing counts zero, one and two completed responses',()=>{for(let n=0;n<=2;n++) assert.equal(state([user,...Array(n).fill(reply)]).response_pacing.completed_responses,n);});
+test('new user message resets pacing; notes and empty placeholders do not count',()=>{assert.equal(state([user,reply,{is_system:true,mes:'Note'},{extra:{isSmallSys:true},mes:'Note'},{mes:' '}]).response_pacing.completed_responses,1);assert.equal(state([user,reply,reply,user]).response_pacing.completed_responses,0);});
+test('pacing survives truncated history and honors configured maximum',()=>{const s=state([user,...Array(7).fill(reply)],1);assert.equal(s.recent_messages.length,4);assert.deepEqual(s.response_pacing,{completed_responses:7,preferred_responses:2,maximum_responses:1,counting_from:'latest_user_message'});});
+test('pacing reaches provider without removing early USER stop or no-repeat',()=>{const s=state([user,reply]);const p=makeRequest({state:s});assert.deepEqual(p.state.response_pacing,s.response_pacing);assert.deepEqual(Object.keys(p.questions.next_speaker.criteria),['USER','C2']);});

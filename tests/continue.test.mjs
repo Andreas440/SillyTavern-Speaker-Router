@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {continueOverride,shouldOverrideContinue} from '../extensions/jev-speaker-router/context.js';
+import {makeRequest,parseDecision} from '../plugins/jev-speaker-router/decision.mjs';
+const avatars=new Map([['C1','one.png'],['C2','two.png'],['C3','three.png']]);
+const state={participants:[{id:'USER',name:'Dre'},{id:'C1',name:'Same'},{id:'C2',name:'Same'},{id:'C3',name:'Third'}],recent_messages:[]};
+test('candidate criteria exclude user and last speaker while preserving scene context',()=>{const p=makeRequest({state,routing:{mode:'continue_other',excluded_id:'C2'}});assert.deepEqual(Object.keys(p.questions.next_speaker.criteria),['C1','C3']);assert.equal(p.state.participants.length,4);});
+test('ordinary routing without a previous speaker permits all participants',()=>assert.deepEqual(Object.keys(makeRequest({state}).questions.next_speaker.criteria),['USER','C1','C2','C3']));
+test('last character is found behind subsequent user and system messages',()=>assert.equal(continueOverride([{original_avatar:'two.png',mes:'Reply'},{is_user:true,mes:'Thanks'},{is_system:true,mes:'System'}],[],avatars).excluded_id,'C2'));
+test('avatar identity handles duplicate names',()=>assert.equal(continueOverride([{name:'Same',original_avatar:'one.png',mes:'Reply'}],[],avatars).excluded_id,'C1'));
+test('ambiguous legacy speaker without avatar fails safely',()=>assert.throws(()=>continueOverride([{name:'Same',mes:'Reply'}],[{name:'Same',avatar:'one.png'},{name:'Same',avatar:'two.png'}],avatars),/unambiguously/));
+test('last muted/removed speaker cannot re-enter candidates',()=>assert.equal(continueOverride([{original_avatar:'gone.png',mes:'Reply'}],[],avatars).excluded_id,null));
+test('single candidate and no-candidate criteria',()=>{const pair={participants:state.participants.slice(0,3),recent_messages:[]};assert.deepEqual(Object.keys(makeRequest({state:pair,routing:{mode:'continue_other',excluded_id:'C1'}}).questions.next_speaker.criteria),['C2']);assert.throws(()=>makeRequest({state:{...pair,participants:pair.participants.slice(0,2)},routing:{mode:'continue_other',excluded_id:'C1'}}),/No other/);});
+test('backend rejects choice outside restricted criteria',()=>assert.throws(()=>parseDecision({answers:{next_speaker:{type:'choice',choice:'USER',probabilities:{C1:1,C3:0}}}},['C1','C3'])));
+test('Continue hook applies only to active user controls; preserves internal continuation',()=>{assert.equal(shouldOverrideContinue('mes_continue',true,false,true),true);assert.equal(shouldOverrideContinue('option_continue',true,false,true),true);assert.equal(shouldOverrideContinue('send_but',true,false,true),true);assert.equal(shouldOverrideContinue('send_but',true,true,true),false);assert.equal(shouldOverrideContinue('mes_continue',false,false,true),false);assert.equal(shouldOverrideContinue('mes_continue',true,false,false),false);});

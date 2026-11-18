@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildState} from '../extensions/jev-speaker-router/context.js';
+import {makeRequest,parseDecision} from '../plugins/jev-speaker-router/decision.mjs';
+const context=()=>({groupId:1,name1:'Dre',groups:[{id:1,members:['a','b']}],characters:[{avatar:'a',name:'A'},{avatar:'b',name:'B'}],chatMetadata:{},chat:[]});
+const criteria=c=>Object.keys(makeRequest({state:buildState(c,{})}).questions.next_speaker.criteria);
+test('user cannot be selected immediately after user; context still includes user',()=>{const c=context();c.chat=[{is_user:true,mes:'Hello'}];const s=buildState(c,{});assert.deepEqual(criteria(c),['C1','C2']);assert.equal(s.participants[0].id,'USER');});
+test('character cannot repeat, but can speak again after intervening user',()=>{const c=context();c.chat=[{original_avatar:'a',mes:'Reply'}];assert.deepEqual(criteria(c),['USER','C2']);c.chat.push({is_user:true,mes:'Thanks'});assert.deepEqual(criteria(c),['C1','C2']);});
+test('system notes and empty placeholders do not reset last speaker',()=>{const c=context();c.chat=[{original_avatar:'a',mes:'Reply'},{is_system:true,mes:'Note'},{extra:{isSmallSys:true},mes:'Small note'},{original_avatar:'b',mes:'  '}];assert.equal(buildState(c,{}).last_speaker,'C1');assert.deepEqual(criteria(c),['USER','C2']);});
+test('legacy latest speaker resolves by unique card name',()=>{const c=context();c.chat=[{name:'B',mes:'Legacy'}];assert.deepEqual(criteria(c),['USER','C1']);});
+test('ambiguous latest legacy speaker stops safely',()=>{const c=context();c.characters[1].name='A';c.chat=[{name:'A',mes:'Legacy'}];assert.throws(()=>criteria(c),/unambiguously/);});
+test('removed speaker does not exclude a current member sharing its name',()=>{const c=context();c.chat=[{name:'A',original_avatar:'removed',mes:'Old reply'}];assert.deepEqual(criteria(c),['USER','C1','C2']);});
+test('single-character group alternates between character and user',()=>{const c=context();c.groups[0].members=['a'];c.chat=[{is_user:true,mes:'Hi'}];assert.deepEqual(criteria(c),['C1']);c.chat.push({original_avatar:'a',mes:'Hi'});assert.deepEqual(criteria(c),['USER']);});
+test('provider cannot reintroduce excluded USER or character',()=>{for(const previous of ['USER','C1']) {const c=context();c.chat=[previous==='USER'?{is_user:true,mes:'Hi'}:{original_avatar:'a',mes:'Hi'}];const ids=criteria(c);assert.throws(()=>parseDecision({answers:{next_speaker:{type:'choice',choice:previous,probabilities:Object.fromEntries(ids.map((id,i)=>[id,i?0:1]))}}},ids),/invalid speaker/);}});
